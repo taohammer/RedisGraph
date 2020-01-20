@@ -35,10 +35,13 @@ QueryGraph *qg;
 // Matrices.
 GrB_Matrix mat_p;
 GrB_Matrix mat_ef;
+GrB_Matrix mat_tef;
 GrB_Matrix mat_f;
 GrB_Matrix mat_ev;
+GrB_Matrix mat_tev;
 GrB_Matrix mat_c;
 GrB_Matrix mat_ew;
+GrB_Matrix mat_tew;
 GrB_Matrix mat_e;
 rax *_matrices;
 
@@ -167,12 +170,15 @@ class AlgebraicExpressionTest: public ::testing::Test {
 
 		mat_id = GraphContext_GetSchema(gc, "friend", SCHEMA_EDGE)->id;
 		mat_ef = Graph_GetRelationMatrix(g, mat_id);
+        mat_tef = Graph_GetTransposedRelationMatrix(g, mat_id);
 
 		mat_id = GraphContext_GetSchema(gc, "visit", SCHEMA_EDGE)->id;
 		mat_ev = Graph_GetRelationMatrix(g, mat_id);
+        mat_tev = Graph_GetTransposedRelationMatrix(g, mat_id);
 
 		mat_id = GraphContext_GetSchema(gc, "war", SCHEMA_EDGE)->id;
 		mat_ew = Graph_GetRelationMatrix(g, mat_id);
+        mat_tew = Graph_GetTransposedRelationMatrix(g, mat_id);
 
         _matrices = raxNew();
         raxInsert(_matrices, (unsigned char *)"p", strlen("p"), mat_p, NULL);
@@ -182,6 +188,9 @@ class AlgebraicExpressionTest: public ::testing::Test {
         raxInsert(_matrices, (unsigned char *)"F", strlen("F"), mat_ef, NULL);
         raxInsert(_matrices, (unsigned char *)"V", strlen("V"), mat_ev, NULL);
         raxInsert(_matrices, (unsigned char *)"W", strlen("W"), mat_ew, NULL);
+        raxInsert(_matrices, (unsigned char *)"tF", strlen("tF"), mat_tef, NULL);
+        raxInsert(_matrices, (unsigned char *)"tV", strlen("tV"), mat_tev, NULL);
+        raxInsert(_matrices, (unsigned char *)"tW", strlen("tW"), mat_tew, NULL);
 	}
 
 	AlgebraicExpression **build_algebraic_expression(const char *query) {
@@ -886,7 +895,7 @@ TEST_F(AlgebraicExpressionTest, BothDirections) {
 	ASSERT_EQ(exp_count, 1);
 
 	AlgebraicExpression *expected[1];
-	expected[0] = AlgebraicExpression_FromString("p*F*f*T(V)*c*W*e", _matrices);
+	expected[0] = AlgebraicExpression_FromString("p*F*f*tV*c*W*e", _matrices);
 	compare_algebraic_expressions(actual, expected, 1);
 
 	// Clean up.
@@ -932,7 +941,7 @@ TEST_F(AlgebraicExpressionTest, ShareableEntity) {
     exp_count = array_len(actual);
 	ASSERT_EQ(exp_count, 1);
 
-	expected[0] = AlgebraicExpression_FromString("e*W*c*V*f*T(F)*p", _matrices);
+	expected[0] = AlgebraicExpression_FromString("e*W*c*V*f*tF*p", _matrices);
     compare_algebraic_expressions(actual, expected, 1);
 
 	// Clean up.
@@ -960,7 +969,7 @@ TEST_F(AlgebraicExpressionTest, ShareableEntity) {
     exp_count = array_len(actual);
 	ASSERT_EQ(exp_count, 1);
 
-	expected[0] = AlgebraicExpression_FromString("p*F*p*T(F)*p", _matrices);
+	expected[0] = AlgebraicExpression_FromString("p*F*p*tF*p", _matrices);
 	compare_algebraic_expressions(actual, expected, 1);
 
 	// Clean up.
@@ -976,7 +985,7 @@ TEST_F(AlgebraicExpressionTest, ShareableEntity) {
 	ASSERT_EQ(exp_count, 3);
 
 	expected[0] = AlgebraicExpression_FromString("p*F*p", _matrices);
-	expected[1] = AlgebraicExpression_FromString("T(F)*p", _matrices);
+	expected[1] = AlgebraicExpression_FromString("tF*p", _matrices);
     expected[2] = AlgebraicExpression_FromString("p*F*p", _matrices);
 	compare_algebraic_expressions(actual, expected, 3);
 
@@ -992,7 +1001,7 @@ TEST_F(AlgebraicExpressionTest, ShareableEntity) {
     exp_count = array_len(actual);
 	ASSERT_EQ(exp_count, 3);
 
-	expected[0] = AlgebraicExpression_FromString("p*T(F)*p", _matrices);
+	expected[0] = AlgebraicExpression_FromString("p*tF*p", _matrices);
 	expected[1] = AlgebraicExpression_FromString("F*p", _matrices);
     expected[2] = AlgebraicExpression_FromString("p*F*p", _matrices);
     compare_algebraic_expressions(actual, expected, 3);
@@ -1134,7 +1143,7 @@ TEST_F(AlgebraicExpressionTest, ShareableEntity) {
     exp_count = array_len(actual);
 	ASSERT_EQ(exp_count, 4);
 	
-	expected[0] = AlgebraicExpression_FromString("T(F)", _matrices);
+	expected[0] = AlgebraicExpression_FromString("tF", _matrices);
 	expected[1] = AlgebraicExpression_FromString("F", _matrices);
 	expected[2] = AlgebraicExpression_FromString("F*F*F", _matrices);
 	expected[3] = AlgebraicExpression_FromString("F", _matrices);
@@ -1153,7 +1162,7 @@ TEST_F(AlgebraicExpressionTest, ShareableEntity) {
 	ASSERT_EQ(exp_count, 6);
 
 	
-	expected[0] = AlgebraicExpression_FromString("T(F)", _matrices);
+	expected[0] = AlgebraicExpression_FromString("tF", _matrices);
     expected[1] = AlgebraicExpression_FromString("F", _matrices);
     expected[2] = AlgebraicExpression_FromString("F", _matrices);
     expected[3] = AlgebraicExpression_FromString("F", _matrices);
@@ -1193,7 +1202,7 @@ TEST_F(AlgebraicExpressionTest, VariableLength) {
 	ASSERT_EQ(exp_count, 3);
     
     expected[0] = AlgebraicExpression_FromString("p*F*f", _matrices);
-    expected[1] = AlgebraicExpression_FromString("T(V)", _matrices);
+    expected[1] = AlgebraicExpression_FromString("tV", _matrices);
     expected[2] = AlgebraicExpression_FromString("c*W*e", _matrices);
     compare_algebraic_expressions(actual, expected, 3);
 

@@ -227,7 +227,7 @@ static void _AlgebraicExpression_FlattenMultiplications(AlgebraicExpression *roo
 
 			break;
 		default:
-			assert("Unknownn algebraic operation type" && false);
+			assert("Unknown algebraic operation type" && false);
 			break;
 		}
 	default:
@@ -246,4 +246,3 @@ void AlgebraicExpression_Optimize
 	_AlgebraicExpression_MulOverSum(exp);
 	_AlgebraicExpression_FlattenMultiplications(*exp);
 }
-
