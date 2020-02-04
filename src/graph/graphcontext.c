@@ -217,6 +217,8 @@ Attribute_ID GraphContext_FindOrAddAttribute(GraphContext *gc, const char *attri
 				  pAttribute_id,
 				  NULL);
 		gc->string_mapping = array_append(gc->string_mapping, rm_strdup(attribute));
+
+		Graph_AddAttribute(gc->g);
 	}
 
 	return attribute_id;

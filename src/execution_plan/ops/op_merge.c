@@ -35,9 +35,10 @@ static void _UpdateProperty(Record r, GraphEntity *ge, EntityUpdateEvalCtx *upda
 	SIValue new_value = AR_EXP_Evaluate(update_ctx->exp, r);
 
 	// Try to get current property value.
-	SIValue *old_value = GraphEntity_GetProperty(ge, update_ctx->attribute_idx);
+	SIValue old_value;
+	GraphEntity_GetProperty(ge, update_ctx->attribute_idx, &old_value);
 
-	if(old_value == PROPERTY_NOTFOUND) {
+	if(SIValue_IsNull(old_value)) {
 		// Add new property.
 		GraphEntity_AddProperty(ge, update_ctx->attribute_idx, new_value);
 	} else {

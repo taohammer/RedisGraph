@@ -57,16 +57,19 @@ static void _ResultSet_VerboseReplyWithSIValue(RedisModuleCtx *ctx, GraphContext
 static void _ResultSet_VerboseReplyWithProperties(RedisModuleCtx *ctx, GraphContext *gc,
 												  const GraphEntity *e) {
 	int prop_count = ENTITY_PROP_COUNT(e);
+	SIValue values[prop_count];
+	const char *attr_names[prop_count];
+	GraphEntity_GetProperties(e, NULL, attr_names, values);
+
 	RedisModule_ReplyWithArray(ctx, prop_count);
 	// Iterate over all properties stored on entity
 	for(int i = 0; i < prop_count; i ++) {
 		RedisModule_ReplyWithArray(ctx, 2);
-		EntityProperty prop = ENTITY_PROPS(e)[i];
 		// Emit the actual string
-		const char *prop_str = GraphContext_GetAttributeString(gc, prop.id);
+		const char *prop_str = attr_names[i];
 		RedisModule_ReplyWithStringBuffer(ctx, prop_str, strlen(prop_str));
 		// Emit the value
-		_ResultSet_VerboseReplyWithSIValue(ctx, gc, prop.value);
+		_ResultSet_VerboseReplyWithSIValue(ctx, gc, values[i]);
 	}
 }
 

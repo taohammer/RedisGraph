@@ -13,7 +13,11 @@ GrB_Info GxB_Matrix_Delete
 	GrB_Index col
 ) {
 	GrB_Matrix Z ;  // 1X1 empty matrix.
-	GrB_Matrix_new(&Z, GrB_BOOL, 1, 1) ;
+	GrB_Type t;     // Type of matrix.
+
+	// Determine type of matrix.
+	GxB_Matrix_type(&t, M);
+	GrB_Matrix_new(&Z, t, 1, 1) ;
 
 	GrB_Info info = GxB_Matrix_subassign(M,
 										 GrB_NULL,

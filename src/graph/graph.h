@@ -21,6 +21,7 @@
 #define GRAPH_DEFAULT_EDGE_CAP 16384            // Default number of edges a graph can hold before resizing.
 #define GRAPH_DEFAULT_RELATION_TYPE_CAP 16      // Default number of different relationship types a graph can hold before resizing.
 #define GRAPH_DEFAULT_LABEL_CAP 16              // Default number of different labels a graph can hold before resizing.
+#define GRAPH_DEFAULT_ATTRIBUTES_CAP 16         // Default number of different attributes a graph can hold before resizing.
 #define GRAPH_NO_LABEL -1                       // Labels are numbered [0-N], -1 represents no label.
 #define GRAPH_UNKNOWN_LABEL -2                  // Labels are numbered [0-N], -2 represents an unknown relation.
 #define GRAPH_NO_RELATION -1                    // Relations are numbered [0-N], -1 represents no relation.
@@ -65,6 +66,8 @@ struct Graph {
 	GrB_Matrix *relations;              // Relation matrices.
 	GrB_Matrix *_relations_map;         // Maps from (relation, row, col) to edge id.
 	GrB_Matrix _zero_matrix;            // Zero matrix.
+    GrB_Matrix *node_attributes;        // Node attribute matrices.
+    GrB_Matrix *edge_attributes;        // Edge attribute matrices.
 	pthread_mutex_t _writers_mutex;     // Mutex restrict single writer.
 	pthread_mutex_t _mutex;             // Mutex for accessing critical sections.
 	pthread_rwlock_t _rwlock;           // Read-write lock scoped to this specific graph
@@ -110,6 +113,11 @@ int Graph_AddLabel(
 // Creates a new relation matrix, returns id given to relation.
 int Graph_AddRelationType(
 	Graph *g
+);
+
+// Creates a new attribute matrices (node/edge).
+void Graph_AddAttribute(
+    Graph *g
 );
 
 // Make sure graph can hold an additional N nodes.
@@ -287,6 +295,16 @@ GrB_Matrix Graph_GetLabelMatrix(
 GrB_Matrix Graph_GetRelationMatrix(
 	const Graph *g,     // Graph from which to get adjacency matrix.
 	int relation        // Relation described by matrix.
+);
+
+GrB_Matrix Graph_GetNodeAttributeMatrix(
+    const Graph *g,
+    int attribute_id
+);
+
+GrB_Matrix Graph_GetEdgeAttributeMatrix(
+    const Graph *g,
+    int attribute_id
 );
 
 // Retrieve a relation mapping matrix coresponding to relation_idx

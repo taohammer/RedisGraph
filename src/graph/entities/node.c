@@ -55,8 +55,7 @@ Node *Node_Clone(const Node *n) {
 
 void Node_ToString(const Node *n, char **buffer, size_t *bufferLen, size_t *bytesWritten,
 				   GraphEntityStringFromat format) {
-	GraphEntity_ToString((const GraphEntity *)n, buffer, bufferLen, bytesWritten, format,
-						 GETYPE_NODE);
+	GraphEntity_ToString((const GraphEntity *)n, buffer, bufferLen, bytesWritten, format);
 }
 
 void Node_Free(Node *node) {
@@ -65,4 +64,3 @@ void Node_Free(Node *node) {
 	free(node);
 	node = NULL;
 }
-

@@ -103,11 +103,21 @@ void _RdbSaveEntity(RedisModuleIO *rdb, const Entity *e,  char **attr_map) {
 
 	RedisModule_SaveUnsigned(rdb, e->prop_count);
 
+	// Create a temporary GraphEntity.
+	GraphEntity ge;
+	ge.entity = (Entity *)e;
+
+	// Allocate both attribute name and attribute value arrays.
+	const char *attr_names[e->prop_count];
+	SIValue attr_values[e->prop_count];
+
+	// Get all attributes associated with graph entity.
+	GraphEntity_GetProperties(&ge, NULL, attr_names, attr_values);
+
 	for(int i = 0; i < e->prop_count; i++) {
-		EntityProperty attr = e->properties[i];
-		const char *attr_name = attr_map[attr.id];
+		const char *attr_name = attr_names[i];
 		RedisModule_SaveStringBuffer(rdb, attr_name, strlen(attr_name) + 1);
-		_RdbSaveSIValue(rdb, &attr.value);
+		_RdbSaveSIValue(rdb, attr_values + i);
 	}
 }
 

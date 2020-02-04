@@ -7,88 +7,130 @@
 #include <stdio.h>
 #include <assert.h>
 #include "graph_entity.h"
-#include "../../query_ctx.h"
-#include "../../util/rmalloc.h"
-#include "../graphcontext.h"
 #include "node.h"
 #include "edge.h"
+#include "../../query_ctx.h"
+#include "../graphcontext.h"
+#include "../../util/rmalloc.h"
+#include "../../GraphBLASExt/GxB_Delete.h"
 
 SIValue *PROPERTY_NOTFOUND = &(SIValue) {
 	.longval = 0, .type = T_NULL
 };
 
 /* Removes entity's property. */
-static void _GraphEntity_RemoveProperty(const GraphEntity *e, Attribute_ID attr_id) {
-	// Quick return if attribute is missing.
-	if(GraphEntity_GetProperty(e, attr_id) == PROPERTY_NOTFOUND) return;
+static void _GraphEntity_RemoveProperty(Entity *e, Attribute_ID attr_id) {
+	assert(e);
+	if(e->prop_count == 0) return;
 
-	// Locate attribute position.
-	int prop_count = e->entity->prop_count;
-	for(int i = 0; i < prop_count; i++) {
-		if(attr_id == e->entity->properties[i].id) {
-			SIValue_Free(&(e->entity->properties[i].value));
-			e->entity->prop_count--;
+	GrB_Matrix m = GrB_NULL;
+	Graph *g = QueryCtx_GetGraph();
 
-			if(e->entity->prop_count == 0) {
-				/* Only attribute removed, free properties bag. */
-				rm_free(e->entity->properties);
-				e->entity->properties = NULL;
-			} else {
-				/* Overwrite deleted attribute with the last
-				 * attribute and shrink properties bag. */
-				e->entity->properties[i] = e->entity->properties[prop_count - 1];
-				e->entity->properties = rm_realloc(e->entity->properties,
-												   sizeof(EntityProperty) * e->entity->prop_count);
-			}
+	if(e->entity_type == GETYPE_NODE) m = Graph_GetNodeAttributeMatrix(g, attr_id);
+	else m = Graph_GetEdgeAttributeMatrix(g, attr_id);
+	assert(m);
 
-			break;
-		}
+	// Make sure attribute exists.
+	SIValue v;
+	if(GrB_Matrix_extractElement_UDT(&v, m, e->id, e->id) == GrB_SUCCESS) {
+		SIValue_Free(&v);
+		assert(GxB_Matrix_Delete(m, e->id, e->id) == GrB_SUCCESS);
+		e->prop_count--;
 	}
 }
 
 /* Add a new property to entity */
-SIValue *GraphEntity_AddProperty(GraphEntity *e, Attribute_ID attr_id, SIValue value) {
-	if(e->entity->properties == NULL) {
-		e->entity->properties = rm_malloc(sizeof(EntityProperty));
-	} else {
-		e->entity->properties = rm_realloc(e->entity->properties,
-										   sizeof(EntityProperty) * (e->entity->prop_count + 1));
-	}
+void GraphEntity_AddProperty(GraphEntity *e, Attribute_ID attr_id, SIValue value) {
+	GrB_Matrix m = GrB_NULL;
+	Graph *g = QueryCtx_GetGraph();
 
-	int prop_idx = e->entity->prop_count;
-	e->entity->properties[prop_idx].id = attr_id;
-	e->entity->properties[prop_idx].value = SI_CloneValue(value);
 	e->entity->prop_count++;
+	if(ENTITY_TYPE(e) == GETYPE_NODE) m = Graph_GetNodeAttributeMatrix(g, attr_id);
+	else m = Graph_GetEdgeAttributeMatrix(g, attr_id);
+	assert(m);
 
-	return &(e->entity->properties[prop_idx].value);
+	// TODO: should we test to see we're overwriting existing value?
+	SIValue clone = SI_CloneValue(value);
+	GrB_Matrix_setElement_UDT(m, &clone, ENTITY_GET_ID(e), ENTITY_GET_ID(e));
 }
 
-SIValue *GraphEntity_GetProperty(const GraphEntity *e, Attribute_ID attr_id) {
-	if(attr_id == ATTRIBUTE_NOTFOUND) return PROPERTY_NOTFOUND;
-
-	for(int i = 0; i < e->entity->prop_count; i++) {
-		if(attr_id == e->entity->properties[i].id) {
-			// Note, unsafe as entity properties can get reallocated.
-			return &(e->entity->properties[i].value);
-		}
+void GraphEntity_GetProperty(const GraphEntity *e, Attribute_ID attr_id, SIValue *v) {
+	if(attr_id == ATTRIBUTE_NOTFOUND || ENTITY_PROP_COUNT(e) == 0) {
+		*v = SI_NullVal();
+		return;
 	}
 
-	return PROPERTY_NOTFOUND;
+	GrB_Matrix m = GrB_NULL;
+	Graph *g = QueryCtx_GetGraph();
+
+	if(ENTITY_TYPE(e) == GETYPE_NODE) m = Graph_GetNodeAttributeMatrix(g, attr_id);
+	else m = Graph_GetEdgeAttributeMatrix(g, attr_id);
+	assert(m);
+
+	GrB_Info info = GrB_Matrix_extractElement_UDT(v, m, ENTITY_GET_ID(e), ENTITY_GET_ID(e));
+	if(info != GrB_SUCCESS) {
+		*v = SI_NullVal();
+		return;
+	}
+
+	/* As we're dealing with a duplicate of the attribute
+	 * (GrB_Matrix_extractElement_UDT performs copy)
+	 * make sure receiver of attribute can't free it. */
+	if(v->allocation != M_NONE) v->allocation = M_CONST;
+}
+
+void GraphEntity_GetProperties(
+	const GraphEntity *e,
+	Attribute_ID *attr_ids,
+	const char **attr_names,
+	SIValue *vs
+) {
+	assert(e && vs);
+
+	SIValue v;
+	GrB_Info info;
+	GrB_Matrix m = GrB_NULL;
+	Attribute_ID attr_id = 0;
+	Graph *g = QueryCtx_GetGraph();
+	int attr_count = ENTITY_PROP_COUNT(e);
+	GraphContext *gc = QueryCtx_GetGraphCtx();
+
+	// As long as there are attributes to be retrieved.
+	while(attr_count) {
+		if(ENTITY_TYPE(e) == GETYPE_NODE) m = Graph_GetNodeAttributeMatrix(g, attr_id);
+		else m = Graph_GetEdgeAttributeMatrix(g, attr_id);
+		assert(m);
+
+		// See if entity contains attribute `attr_id`.
+		info = GrB_Matrix_extractElement_UDT(&v, m, ENTITY_GET_ID(e), ENTITY_GET_ID(e));
+		if(info == GrB_SUCCESS) {
+			if(attr_ids) attr_ids[attr_count - 1] = attr_id;
+			if(attr_names) attr_names[attr_count - 1] = GraphContext_GetAttributeString(gc, attr_id);
+
+			/* As we're dealing with a duplicate of the attribute
+			* (GrB_Matrix_extractElement_UDT performs copy)
+			* make sure receiver of attribute can't free it. */
+			if(v.allocation != M_NONE) v.allocation = M_CONST;
+			vs[attr_count - 1] = v;
+
+			attr_count--;
+		}
+
+		attr_id++;
+	}
 }
 
 // Updates existing property value.
-void GraphEntity_SetProperty(const GraphEntity *e, Attribute_ID attr_id, SIValue value) {
+void GraphEntity_SetProperty(GraphEntity *e, Attribute_ID attr_id, SIValue value) {
 	assert(e);
 
-	// Setting an attribute value to NULL removes that attribute.
-	if(SIValue_IsNull(value)) {
-		return _GraphEntity_RemoveProperty(e, attr_id);
-	}
+	// Start by removing previous value.
+	_GraphEntity_RemoveProperty(e->entity, attr_id);
 
-	SIValue *prop = GraphEntity_GetProperty(e, attr_id);
-	assert(prop != PROPERTY_NOTFOUND);
-	SIValue_Free(prop);
-	*prop = SI_CloneValue(value);
+	// Setting an attribute value to NULL removes that attribute.
+	if(SIValue_IsNull(value)) return;
+
+	GraphEntity_AddProperty(e, attr_id, SI_CloneValue(value));
 }
 
 size_t GraphEntity_PropertiesToString(const GraphEntity *e, char **buffer, size_t *bufferLen,
@@ -100,11 +142,20 @@ size_t GraphEntity_PropertiesToString(const GraphEntity *e, char **buffer, size_
 	}
 	*bytesWritten += snprintf(*buffer, *bufferLen, "{");
 	GraphContext *gc = QueryCtx_GetGraphCtx();
+	SIValue v;
+	Attribute_ID attr_id = 0;
 	int propCount = ENTITY_PROP_COUNT(e);
-	EntityProperty *properties = ENTITY_PROPS(e);
-	for(int i = 0; i < propCount; i++) {
+
+	while(propCount) {
+		GraphEntity_GetProperty(e, attr_id++, &v);
+		if(SIValue_IsNull(v)) {
+			attr_id++;
+			continue;
+		}
+		propCount--;
+
 		// print key
-		const char *key = GraphContext_GetAttributeString(gc, properties[i].id);
+		const char *key = GraphContext_GetAttributeString(gc, attr_id);
 		// check for enough space
 		size_t keyLen = strlen(key);
 		if(*bufferLen - *bytesWritten < keyLen) {
@@ -114,12 +165,15 @@ size_t GraphEntity_PropertiesToString(const GraphEntity *e, char **buffer, size_
 		*bytesWritten += snprintf(*buffer + *bytesWritten, *bufferLen, "%s:", key);
 
 		// print value
-		SIValue_ToString(properties[i].value, buffer, bufferLen, bytesWritten);
+		SIValue_ToString(v, buffer, bufferLen, bytesWritten);
 
 		// if not the last element print ", "
-		if(i != propCount - 1) *bytesWritten = snprintf(*buffer + *bytesWritten, *bufferLen, ", ");
+		if(propCount) *bytesWritten = snprintf(*buffer + *bytesWritten, *bufferLen, ", ");
 
+		// Advance to the next attribute.
+		attr_id++;
 	}
+
 	// check for enough space for close with "}\0"
 	if(*bufferLen - *bytesWritten < 2) {
 		*bufferLen += 2;
@@ -130,8 +184,7 @@ size_t GraphEntity_PropertiesToString(const GraphEntity *e, char **buffer, size_
 }
 
 void GraphEntity_ToString(const GraphEntity *e, char **buffer, size_t *bufferLen,
-						  size_t *bytesWritten,
-						  GraphEntityStringFromat format, GraphEntityType entityType) {
+						  size_t *bytesWritten, GraphEntityStringFromat format) {
 	// space allocation
 	if(*bufferLen - *bytesWritten < 64)  {
 		*bufferLen += 64;
@@ -141,7 +194,7 @@ void GraphEntity_ToString(const GraphEntity *e, char **buffer, size_t *bufferLen
 	// get open an close symbols
 	char *openSymbole;
 	char *closeSymbole;
-	if(entityType == GETYPE_NODE) {
+	if(ENTITY_TYPE(e) == GETYPE_NODE) {
 		openSymbole = "(";
 		closeSymbole = ")";
 	} else {
@@ -157,7 +210,7 @@ void GraphEntity_ToString(const GraphEntity *e, char **buffer, size_t *bufferLen
 
 	// write label
 	if(format & ENTITY_LABELS_OR_RELATIONS) {
-		switch(entityType) {
+		switch(ENTITY_TYPE(e)) {
 		case GETYPE_NODE: {
 			Node *n = (Node *)e;
 			if(n->label) {
@@ -205,10 +258,6 @@ void GraphEntity_ToString(const GraphEntity *e, char **buffer, size_t *bufferLen
 
 void FreeEntity(Entity *e) {
 	assert(e);
-	if(e->properties != NULL) {
-		for(int i = 0; i < e->prop_count; i++) SIValue_Free(&e->properties[i].value);
-		rm_free(e->properties);
-		e->properties = NULL;
-	}
+	Attribute_ID attr_id = 0;
+	while(e->prop_count) _GraphEntity_RemoveProperty(e, attr_id++);
 }
-

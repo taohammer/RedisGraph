@@ -43,8 +43,7 @@ static void _QueueUpdate(OpUpdate *op, GraphEntity *entity, GraphEntityType type
 }
 
 /* Introduce updated entity to index. */
-static void _UpdateIndex(EntityUpdateCtx *ctx, GraphContext *gc, Schema *s, SIValue *old_value,
-						 SIValue *new_value) {
+static void _UpdateIndex(EntityUpdateCtx *ctx, GraphContext *gc, Schema *s) {
 	Node *n = &ctx->n;
 	EntityID node_id = ENTITY_GET_ID(n);
 
@@ -67,9 +66,10 @@ static void _UpdateNode(OpUpdate *op, EntityUpdateCtx *ctx) {
 	}
 
 	// Try to get current property value.
-	SIValue *old_value = GraphEntity_GetProperty((GraphEntity *)node, ctx->attr_id);
+	SIValue old_value;
+	GraphEntity_GetProperty((GraphEntity *)node, ctx->attr_id, &old_value);
 
-	if(old_value == PROPERTY_NOTFOUND) {
+	if(SIValue_IsNull(old_value)) {
 		// Add new property.
 		GraphEntity_AddProperty((GraphEntity *)node, ctx->attr_id, ctx->new_value);
 	} else {
@@ -78,7 +78,7 @@ static void _UpdateNode(OpUpdate *op, EntityUpdateCtx *ctx) {
 	}
 
 	// Update index for node entities.
-	_UpdateIndex(ctx, op->gc, s, old_value, &ctx->new_value);
+	_UpdateIndex(ctx, op->gc, s);
 }
 
 static void _UpdateEdge(OpUpdate *op, EntityUpdateCtx *ctx) {
@@ -92,9 +92,10 @@ static void _UpdateEdge(OpUpdate *op, EntityUpdateCtx *ctx) {
 	int label_id = Graph_GetEdgeRelation(op->gc->g, edge);
 
 	// Try to get current property value.
-	SIValue *old_value = GraphEntity_GetProperty((GraphEntity *)edge, ctx->attr_id);
+	SIValue old_value;
+	GraphEntity_GetProperty((GraphEntity *)edge, ctx->attr_id, &old_value);
 
-	if(old_value == PROPERTY_NOTFOUND) {
+	if(SIValue_IsNull(old_value)) {
 		// Add new property.
 		GraphEntity_AddProperty((GraphEntity *)edge, ctx->attr_id, ctx->new_value);
 	} else {

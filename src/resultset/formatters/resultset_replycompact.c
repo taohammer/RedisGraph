@@ -88,15 +88,19 @@ static void _ResultSet_CompactReplyWithProperties(RedisModuleCtx *ctx, GraphCont
 												  const GraphEntity *e) {
 	int prop_count = ENTITY_PROP_COUNT(e);
 	RedisModule_ReplyWithArray(ctx, prop_count);
+
+	SIValue values[prop_count];
+	Attribute_ID attr_ids[prop_count];
+	GraphEntity_GetProperties(e, attr_ids, NULL, values);
+
 	// Iterate over all properties stored on entity
 	for(int i = 0; i < prop_count; i ++) {
 		// Compact replies include the value's type; verbose replies do not
 		RedisModule_ReplyWithArray(ctx, 3);
-		EntityProperty prop = ENTITY_PROPS(e)[i];
 		// Emit the string index
-		RedisModule_ReplyWithLongLong(ctx, prop.id);
+		RedisModule_ReplyWithLongLong(ctx, attr_ids[i]);
 		// Emit the value
-		_ResultSet_CompactReplyWithSIValue(ctx, gc, prop.value);
+		_ResultSet_CompactReplyWithSIValue(ctx, gc, values[i]);
 	}
 }
 

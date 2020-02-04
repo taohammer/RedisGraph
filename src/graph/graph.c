@@ -12,6 +12,7 @@
 #include "../GraphBLASExt/GxB_Delete.h"
 #include "../util/rmalloc.h"
 
+static GrB_Type GrB_SIValue = NULL;
 static GrB_BinaryOp _graph_edge_accum = NULL;
 
 /* ========================= Forward declarations  ========================= */
@@ -335,9 +336,11 @@ Graph *Graph_New(size_t node_cap, size_t edge_cap) {
 	edge_cap = MAX(node_cap, GRAPH_DEFAULT_EDGE_CAP);
 
 	Graph *g = rm_malloc(sizeof(Graph));
-	g->nodes = DataBlock_New(node_cap, sizeof(Entity), (fpDestructor)FreeEntity);
-	g->edges = DataBlock_New(edge_cap, sizeof(Entity), (fpDestructor)FreeEntity);
+	g->nodes = DataBlock_New(node_cap, sizeof(Entity), NULL);
+	g->edges = DataBlock_New(edge_cap, sizeof(Entity), NULL);
 	g->labels = array_new(GrB_Matrix, GRAPH_DEFAULT_LABEL_CAP);
+	g->node_attributes = array_new(GrB_Matrix, GRAPH_DEFAULT_ATTRIBUTES_CAP);
+	g->edge_attributes = array_new(GrB_Matrix, GRAPH_DEFAULT_ATTRIBUTES_CAP);
 	g->relations = array_new(GrB_Matrix, GRAPH_DEFAULT_RELATION_TYPE_CAP);
 	g->_relations_map = array_new(GrB_Matrix, GRAPH_DEFAULT_RELATION_TYPE_CAP);
 	GrB_Matrix_new(&g->adjacency_matrix, GrB_BOOL, node_cap, node_cap);
@@ -508,7 +511,7 @@ void Graph_CreateNode(Graph *g, int label, Node *n) {
 	Entity *en = DataBlock_AllocateItem(g->nodes, &id);
 	en->id = id;
 	en->prop_count = 0;
-	en->properties = NULL;
+	en->entity_type = GETYPE_NODE;
 	n->entity = en;
 
 	if(label != GRAPH_NO_LABEL) {
@@ -536,7 +539,7 @@ int Graph_ConnectNodes(Graph *g, NodeID src, NodeID dest, int r, Edge *e) {
 	Entity *en = DataBlock_AllocateItem(g->edges, &id);
 	en->id = id;
 	en->prop_count = 0;
-	en->properties = NULL;
+	en->entity_type = GETYPE_EDGE;
 	e->entity = en;
 	e->relationID = r;
 	e->srcNodeID = src;
@@ -711,6 +714,7 @@ int Graph_DeleteEdge(Graph *g, Edge *e) {
 
 	// Free and remove edges from datablock.
 	DataBlock_DeleteItem(g->edges, ENTITY_GET_ID(e));
+	// TODO: Delete edge attributes.
 	return 1;
 }
 
@@ -728,6 +732,7 @@ void Graph_DeleteNode(Graph *g, Node *n) {
 	}
 
 	DataBlock_DeleteItem(g->nodes, ENTITY_GET_ID(n));
+	// TODO: Delete node attributes.
 }
 
 void _BulkDeleteNodes(Graph *g, Node *nodes, uint node_count,
@@ -975,6 +980,26 @@ void _BulkDeleteEdges(Graph *g, Edge *edges, size_t edge_count) {
 	}
 }
 
+void _Bulk_Delete_Attributes(Graph *g) {
+	GrB_Matrix m;
+	uint32_t attribute_count = array_len(g->node_attributes);
+
+	for(int i = 0; i < attribute_count; i++) {
+		m = g->node_attributes[i];
+		// TODO: Free each entry by calling SIValue_Free.
+		GrB_Matrix_free(&m);
+	}
+	array_free(g->node_attributes);
+
+	attribute_count = array_len(g->edge_attributes);
+	for(int i = 0; i < attribute_count; i++) {
+		m = g->edge_attributes[i];
+		// TODO: Free each entry by calling SIValue_Free.
+		GrB_Matrix_free(&m);
+	}
+	array_free(g->edge_attributes);
+}
+
 /* Removes both nodes and edges from graph. */
 void Graph_BulkDelete(Graph *g, Node *nodes, uint node_count, Edge *edges, uint edge_count,
 					  uint *node_deleted, uint *edge_deleted) {
@@ -1063,6 +1088,21 @@ int Graph_AddRelationType(Graph *g) {
 	return relationID;
 }
 
+void Graph_AddAttribute(Graph *g) {
+	assert(g);
+
+	GrB_Matrix m;
+	if(!GrB_SIValue) {
+		assert(GrB_Type_new(&GrB_SIValue, sizeof(SIValue)) == GrB_SUCCESS);
+	}
+
+	GrB_Matrix_new(&m, GrB_SIValue, Graph_RequiredMatrixDim(g), Graph_RequiredMatrixDim(g));
+	array_append(g->node_attributes, m);
+
+	GrB_Matrix_new(&m, GrB_SIValue, Graph_RequiredMatrixDim(g), Graph_RequiredMatrixDim(g));
+	array_append(g->edge_attributes, m);
+}
+
 GrB_Matrix Graph_GetAdjacencyMatrix(const Graph *g) {
 	assert(g);
 	GrB_Matrix m = g->adjacency_matrix;
@@ -1090,6 +1130,30 @@ GrB_Matrix Graph_GetRelationMatrix(const Graph *g, int relation_idx) {
 	return m;
 }
 
+GrB_Matrix Graph_GetNodeAttributeMatrix(const Graph *g, int attribute_id) {
+	assert(g);
+
+	GrB_Matrix m;
+	assert(attribute_id < array_len(g->node_attributes));
+	m = g->node_attributes[attribute_id];
+
+	assert(m);
+	g->SynchronizeMatrix(g, m);
+	return m;
+}
+
+GrB_Matrix Graph_GetEdgeAttributeMatrix(const Graph *g, int attribute_id) {
+	assert(g);
+
+	GrB_Matrix m;
+	assert(attribute_id < array_len(g->edge_attributes));
+	m = g->edge_attributes[attribute_id];
+
+	assert(m);
+	g->SynchronizeMatrix(g, m);
+	return m;
+}
+
 GrB_Matrix Graph_GetZeroMatrix(const Graph *g) {
 	GrB_Index nvals;
 	GrB_Matrix z = g->_zero_matrix;
@@ -1105,7 +1169,6 @@ void Graph_Free(Graph *g) {
 	assert(g);
 	// Free matrices.
 	Entity *en;
-	DataBlockIterator *it;
 	GrB_Matrix z = Graph_GetZeroMatrix(g);
 	GrB_Matrix m = Graph_GetAdjacencyMatrix(g);
 	GrB_Matrix tm = _Graph_Get_Transposed_AdjacencyMatrix(g);
@@ -1117,6 +1180,7 @@ void Graph_Free(Graph *g) {
 	for(int i = 0; i < relationCount; i++) {
 		m = g->relations[i];
 		GrB_Matrix_free(&m);
+		// TODO: Leaking entries of type array pointer.
 		m = g->_relations_map[i];
 		GrB_Matrix_free(&m);
 	}
@@ -1130,17 +1194,7 @@ void Graph_Free(Graph *g) {
 	}
 	array_free(g->labels);
 
-	it = Graph_ScanNodes(g);
-	while((en = (Entity *)DataBlockIterator_Next(it)) != NULL)
-		FreeEntity(en);
-
-	DataBlockIterator_Free(it);
-
-	it = Graph_ScanEdges(g);
-	while((en = DataBlockIterator_Next(it)) != NULL)
-		FreeEntity(en);
-
-	DataBlockIterator_Free(it);
+	_Bulk_Delete_Attributes(g);
 
 	// Free blocks.
 	DataBlock_Free(g->nodes);

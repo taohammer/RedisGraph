@@ -42,9 +42,9 @@ NodeID Edge_GetDestNodeID(const Edge *edge); // graph.c, serializer, all_paths, 
 int Edge_GetRelationID(const Edge *edge); // graph.c, replies
 
 // Retrieve edge source node.
-Node *Edge_GetSrcNode(Edge *e); // opcreate
+Node *Edge_GetSrcNode(Edge *e);
 
-// Retrieve edge destination node. // opcreate
+// Retrieve edge destination node.
 Node *Edge_GetDestNode(Edge *e);
 
 // Retrieves edge matrix.

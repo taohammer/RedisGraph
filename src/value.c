@@ -30,25 +30,25 @@ static inline void _SIString_ToString(SIValue str, char **buf, size_t *bufferLen
 
 SIValue SI_LongVal(int64_t i) {
 	return (SIValue) {
-		.longval = i, .type = T_INT64
+		.longval = i, .type = T_INT64, .allocation = M_NONE
 	};
 }
 
 SIValue SI_DoubleVal(double d) {
 	return (SIValue) {
-		.doubleval = d, .type = T_DOUBLE
+		.doubleval = d, .type = T_DOUBLE, .allocation = M_NONE
 	};
 }
 
 SIValue SI_NullVal(void) {
 	return (SIValue) {
-		.longval = 0, .type = T_NULL
+		.longval = 0, .type = T_NULL, .allocation = M_NONE
 	};
 }
 
 SIValue SI_BoolVal(int b) {
 	return (SIValue) {
-		.longval = b, .type = T_BOOL
+		.longval = b, .type = T_BOOL, .allocation = M_NONE
 	};
 }
 
@@ -151,7 +151,7 @@ SIValue SI_CloneValue(const SIValue v) {
 }
 
 /* Make an SIValue that shares the original's allocations but can safely expect those allocations
- *  to remain in scope. This is most frequently the case for GraphEntity properties. */
+ * to remain in scope. This is most frequently the case for GraphEntity properties. */
 SIValue SI_ConstValue(const SIValue v) {
 	SIValue dup = v;
 	if(v.allocation != M_NONE) dup.allocation = M_CONST;

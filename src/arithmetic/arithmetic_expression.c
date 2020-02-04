@@ -320,12 +320,10 @@ static AR_EXP_Result _AR_EXP_EvaluateProperty(AR_ExpNode *node, const Record r, 
 		_AR_EXP_UpdatePropIdx(node, NULL);
 	}
 
-	SIValue *property = GraphEntity_GetProperty(ge, node->operand.variadic.entity_prop_idx);
-	if(property == PROPERTY_NOTFOUND) {
-		*result = SI_NullVal();
-	} else {
+	GraphEntity_GetProperty(ge, node->operand.variadic.entity_prop_idx, result);
+	if(!SIValue_IsNull(*result)) {
 		// The value belongs to a graph property, and can be accessed safely during the query lifetime.
-		*result = SI_ConstValue(*property);
+		*result = SI_ConstValue(*result);
 	}
 
 	return EVAL_OK;

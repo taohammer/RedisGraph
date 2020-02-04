@@ -12,7 +12,7 @@
 #include "../../../deps/GraphBLAS/Include/GraphBLAS.h"
 
 typedef struct {
-	Entity *entity;    /* MUST be the first property of Edge. */
+	Entity *entity;    /* MUST be the first property of Node. */
 	const char *label; /* Label attached to node */
 	int labelID;       /* Label ID. */
 	GrB_Matrix mat;    /* Label matrix, associated with node. */

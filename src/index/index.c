@@ -9,21 +9,23 @@
 static int _getNodeAttribute(void *ctx, const char *fieldName, const void *id, char **strVal,
 							 double *doubleVal) {
 	Node n;
+	SIValue v;
 	NodeID nId = *(NodeID *)id;
 	GraphContext *gc = (GraphContext *)ctx;
 	Graph *g = gc->g;
 
 	assert(Graph_GetNode(g, nId, &n));
 	Attribute_ID attrId = GraphContext_GetAttributeID(gc, fieldName);
-	SIValue *v = GraphEntity_GetProperty((GraphEntity *)&n, attrId);
+	GraphEntity_GetProperty((GraphEntity *)&n, attrId, &v);
+
 	int ret;
-	if(v == PROPERTY_NOTFOUND) {
+	if(SIValue_IsNull(v)) {
 		ret = RSVALTYPE_NOTFOUND;
-	} else if(v->type & T_STRING) {
-		*strVal = v->stringval;
+	} else if(SI_TYPE(v) & T_STRING) {
+		*strVal = v.stringval;
 		ret = RSVALTYPE_STRING;
-	} else if(v->type & SI_NUMERIC) {
-		*doubleVal = SI_GET_NUMERIC(*v);
+	} else if(SI_TYPE(v) & SI_NUMERIC) {
+		*doubleVal = SI_GET_NUMERIC(v);
 		ret = RSVALTYPE_DOUBLE;
 	} else {
 		// Skiping booleans.
@@ -131,25 +133,26 @@ void Index_IndexNode
 
 	// Add document field for each indexed property.
 	for(uint i = 0; i < idx->fields_count; i++) {
-		SIValue *v = GraphEntity_GetProperty((GraphEntity *)n, idx->fields_ids[i]);
-		if(v == PROPERTY_NOTFOUND) continue;
+		SIValue v;
+		GraphEntity_GetProperty((GraphEntity *)n, idx->fields_ids[i], &v);
+		if(SIValue_IsNull(v)) continue;
 
 		doc_field_count++;
 		if(idx->type == IDX_FULLTEXT) {
 			// Value must be of type string.
-			if(SI_TYPE(*v) == T_STRING) {
+			if(SI_TYPE(v) == T_STRING) {
 				RediSearch_DocumentAddFieldString(doc,
 												  idx->fields[i],
-												  v->stringval,
-												  strlen(v->stringval),
+												  v.stringval,
+												  strlen(v.stringval),
 												  RSFLDTYPE_FULLTEXT);
 			}
 		} else {
-			if(SI_TYPE(*v) == T_STRING) {
-				RediSearch_DocumentAddFieldString(doc, idx->fields[i], v->stringval, strlen(v->stringval),
+			if(SI_TYPE(v) == T_STRING) {
+				RediSearch_DocumentAddFieldString(doc, idx->fields[i], v.stringval, strlen(v.stringval),
 												  RSFLDTYPE_TAG);
-			} else if(SI_TYPE(*v) & (SI_NUMERIC | T_BOOL)) {
-				double d = SI_GET_NUMERIC(*v);
+			} else if(SI_TYPE(v) & (SI_NUMERIC | T_BOOL)) {
+				double d = SI_GET_NUMERIC(v);
 				RediSearch_DocumentAddFieldNumber(doc, idx->fields[i], d, RSFLDTYPE_NUMERIC);
 			} else {
 				continue;

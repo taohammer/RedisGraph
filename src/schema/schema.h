@@ -17,9 +17,8 @@ typedef enum {
 	SCHEMA_EDGE,
 } SchemaType;
 
-/* Schema represents the structure of a typed graph entity (Node/Edge).
- * similar to a relational table structure, our schemas are a collection
- * of attributes we've encountered overtime as entities were created or updated. */
+/* Node label, edge relation type, are mapped to a schema
+ * each is associated with a unique ID and indices. */
 typedef struct {
 	int id;               // Internal ID to a matrix within the graph.
 	char *name;           // Schema name.
@@ -54,4 +53,3 @@ void Schema_AddNodeToIndices(const Schema *s, const Node *n, bool update);
 
 /* Free schema. */
 void Schema_Free(Schema *s);
-
