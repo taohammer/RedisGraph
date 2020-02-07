@@ -7,6 +7,7 @@
 #include "encode_graphcontext.h"
 #include "encode_graph.h"
 #include "encode_schema.h"
+#include "../../../query_ctx.h"
 
 extern bool process_is_child; // Global variable declared in module.c
 
@@ -43,7 +44,7 @@ void RdbSaveGraphContext(RedisModuleIO *rdb, void *value) {
 	*/
 
 	GraphContext *gc = value;
-
+	QueryCtx_SetGraphCtx(gc);
 	// Acquire a read lock if we're not in a thread-safe context.
 	if(_shouldAcquireLocks()) Graph_AcquireReadLock(gc->g);
 
@@ -79,3 +80,4 @@ void RdbSaveGraphContext(RedisModuleIO *rdb, void *value) {
 	// If a lock was acquired, release it.
 	if(_shouldAcquireLocks()) Graph_ReleaseLock(gc->g);
 }
+
