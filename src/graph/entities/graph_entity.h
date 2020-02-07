@@ -47,7 +47,7 @@ typedef enum GraphEntityType {
 // TODO: see if pragma pack 0 will cause memory access violation on ARM.
 typedef struct {
 	EntityID id;                // Unique id
-	int entity_type : 2;        // 1: node, 2: edge.
+	uint entity_type : 2;       // 1: node, 2: edge.
 	int prop_count;             // Number of properties.
 } Entity;
 
@@ -64,19 +64,22 @@ void GraphEntity_AddProperty(GraphEntity *e, Attribute_ID attr_id, SIValue value
  * NOTE: If the key does not exist, we set `v` to SI_NullVal. */
 void GraphEntity_GetProperty(const GraphEntity *e, Attribute_ID attr_id, SIValue *v);
 
-/* Retrieves all properties assigned to entity 
+/* Retrieves all properties assigned to entity
  * attr_id - optional array of length prop_count.
  * attr_name - optional array of length prop_count.
  * v - array of length prop_count. */
-void GraphEntity_GetProperties(const GraphEntity *e, Attribute_ID *attr_ids, const char **attr_names, SIValue *vs);
+void GraphEntity_GetProperties(const GraphEntity *e, Attribute_ID *attr_ids,
+							   const char **attr_names, SIValue *vs);
 
 /* Updates existing attribute value. */
 void GraphEntity_SetProperty(GraphEntity *e, Attribute_ID attr_id, SIValue value);
 
 /* Prints the graph entity into a buffer, returns what is the string length, buffer can be re-allocated at need. */
-void GraphEntity_ToString(const GraphEntity *e, char **buffer, size_t *bufferLen, size_t *bytesWritten, GraphEntityStringFromat format);
+void GraphEntity_ToString(const GraphEntity *e, char **buffer, size_t *bufferLen,
+						  size_t *bytesWritten, GraphEntityStringFromat format);
 
 /* Release all memory allocated by entity */
 void FreeEntity(Entity *e);
 
 #endif
+
