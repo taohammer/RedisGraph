@@ -338,6 +338,7 @@ Graph *Graph_New(size_t node_cap, size_t edge_cap) {
 	Graph *g = rm_malloc(sizeof(Graph));
 	g->nodes = DataBlock_New(node_cap, sizeof(Entity), NULL);
 	g->edges = DataBlock_New(edge_cap, sizeof(Entity), NULL);
+	g->edge_endpoints = DataBlock_New(edge_cap, sizeof(EdgeEndpoints), NULL);
 	g->labels = array_new(GrB_Matrix, GRAPH_DEFAULT_LABEL_CAP);
 	g->node_attributes = array_new(GrB_Matrix, GRAPH_DEFAULT_ATTRIBUTES_CAP);
 	g->edge_attributes = array_new(GrB_Matrix, GRAPH_DEFAULT_ATTRIBUTES_CAP);
@@ -411,6 +412,7 @@ void Graph_AllocateNodes(Graph *g, size_t n) {
 void Graph_AllocateEdges(Graph *g, size_t n) {
 	assert(g);
 	DataBlock_Accommodate(g->edges, n);
+	DataBlock_Accommodate(g->edge_endpoints, n);
 }
 
 int Graph_GetNode(const Graph *g, NodeID id, Node *n) {
@@ -423,6 +425,16 @@ int Graph_GetEdge(const Graph *g, EdgeID id, Edge *e) {
 	assert(g && id < _Graph_EdgeCap(g));
 	e->entity = _Graph_GetEntity(g->edges, id);
 	return (e->entity != NULL);
+}
+
+GrB_Index Graph_GetEdgeSrc(const Graph *g, EdgeID id) {
+	EdgeEndpoints *endpoints = DataBlock_GetItem(g->edge_endpoints, id);
+	return endpoints->src;
+}
+
+GrB_Index Graph_GetEdgeDest(const Graph *g, EdgeID id) {
+	EdgeEndpoints *endpoints = DataBlock_GetItem(g->edge_endpoints, id);
+	return endpoints->dest;
 }
 
 int Graph_GetNodeLabel(const Graph *g, NodeID nodeID) {
@@ -544,6 +556,10 @@ int Graph_ConnectNodes(Graph *g, NodeID src, NodeID dest, int r, Edge *e) {
 	e->relationID = r;
 	e->srcNodeID = src;
 	e->destNodeID = dest;
+
+	EdgeEndpoints *endpoints = DataBlock_AllocateItem(g->edge_endpoints, &id);
+	endpoints->src = src;
+	endpoints->dest = dest;
 
 	GrB_Matrix adj = Graph_GetAdjacencyMatrix(g);
 	GrB_Matrix relationMat = Graph_GetRelationMatrix(g, r);
@@ -714,6 +730,7 @@ int Graph_DeleteEdge(Graph *g, Edge *e) {
 
 	// Free and remove edges from datablock.
 	DataBlock_DeleteItem(g->edges, ENTITY_GET_ID(e));
+	DataBlock_DeleteItem(g->edge_endpoints, ENTITY_GET_ID(e));
 	// TODO: Delete edge attributes.
 	return 1;
 }
@@ -932,6 +949,7 @@ void _BulkDeleteEdges(Graph *g, Edge *edges, size_t edge_count) {
 
 		// Free and remove edges from datablock.
 		DataBlock_DeleteItem(g->edges, ENTITY_GET_ID(e));
+		DataBlock_DeleteItem(g->edge_endpoints, ENTITY_GET_ID(e));
 	}
 
 	if(update_adj_matrices) {
@@ -1199,6 +1217,7 @@ void Graph_Free(Graph *g) {
 	// Free blocks.
 	DataBlock_Free(g->nodes);
 	DataBlock_Free(g->edges);
+	DataBlock_Free(g->edge_endpoints);
 
 	// Destroy graph-scoped locks.
 	assert(pthread_mutex_destroy(&g->_mutex) == 0);

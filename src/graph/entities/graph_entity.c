@@ -26,15 +26,24 @@ static void _GraphEntity_RemoveProperty(Entity *e, Attribute_ID attr_id) {
 	GrB_Matrix m = GrB_NULL;
 	Graph *g = QueryCtx_GetGraph();
 
-	if(e->entity_type == GETYPE_NODE) m = Graph_GetNodeAttributeMatrix(g, attr_id);
-	else m = Graph_GetEdgeAttributeMatrix(g, attr_id);
+	GrB_Index row = INVALID_ENTITY_ID;
+	GrB_Index col = INVALID_ENTITY_ID;
+	if(e->entity_type == GETYPE_NODE) {
+		m = Graph_GetNodeAttributeMatrix(g, attr_id);
+		row = col = e->id;
+	} else {
+		m = Graph_GetEdgeAttributeMatrix(g, attr_id);
+		row = Graph_GetEdgeSrc(g, e->id);
+		col = Graph_GetEdgeDest(g, e->id);
+	}
 	assert(m);
+	assert(row != INVALID_ENTITY_ID && col != INVALID_ENTITY_ID);
 
 	// Make sure attribute exists.
 	SIValue v;
-	if(GrB_Matrix_extractElement_UDT(&v, m, e->id, e->id) == GrB_SUCCESS) {
+	if(GrB_Matrix_extractElement_UDT(&v, m, row, col) == GrB_SUCCESS) {
 		SIValue_Free(&v);
-		assert(GxB_Matrix_Delete(m, e->id, e->id) == GrB_SUCCESS);
+		assert(GxB_Matrix_Delete(m, row, col) == GrB_SUCCESS);
 		e->prop_count--;
 	}
 }
@@ -45,13 +54,23 @@ void GraphEntity_AddProperty(GraphEntity *e, Attribute_ID attr_id, SIValue value
 	Graph *g = QueryCtx_GetGraph();
 
 	e->entity->prop_count++;
-	if(ENTITY_TYPE(e) == GETYPE_NODE) m = Graph_GetNodeAttributeMatrix(g, attr_id);
-	else m = Graph_GetEdgeAttributeMatrix(g, attr_id);
+	GraphEntityType type = ENTITY_TYPE(e);
+	GrB_Index row = INVALID_ENTITY_ID;
+	GrB_Index col = INVALID_ENTITY_ID;
+	if(type == GETYPE_NODE) {
+		m = Graph_GetNodeAttributeMatrix(g, attr_id);
+		row = col = ENTITY_GET_ID(e);
+	} else {
+		m = Graph_GetEdgeAttributeMatrix(g, attr_id);
+		row = Graph_GetEdgeSrc(g, ENTITY_GET_ID(e));
+		col = Graph_GetEdgeDest(g, ENTITY_GET_ID(e));
+	}
 	assert(m);
+	assert(row != INVALID_ENTITY_ID && col != INVALID_ENTITY_ID);
 
 	// TODO: should we test to see we're overwriting existing value?
 	SIValue clone = SI_CloneValue(value);
-	GrB_Matrix_setElement_UDT(m, &clone, ENTITY_GET_ID(e), ENTITY_GET_ID(e));
+	GrB_Matrix_setElement_UDT(m, &clone, row, col);
 }
 
 void GraphEntity_GetProperty(const GraphEntity *e, Attribute_ID attr_id, SIValue *v) {
@@ -63,11 +82,21 @@ void GraphEntity_GetProperty(const GraphEntity *e, Attribute_ID attr_id, SIValue
 	GrB_Matrix m = GrB_NULL;
 	Graph *g = QueryCtx_GetGraph();
 
-	if(ENTITY_TYPE(e) == GETYPE_NODE) m = Graph_GetNodeAttributeMatrix(g, attr_id);
-	else m = Graph_GetEdgeAttributeMatrix(g, attr_id);
+	GraphEntityType type = ENTITY_TYPE(e);
+	GrB_Index row = INVALID_ENTITY_ID;
+	GrB_Index col = INVALID_ENTITY_ID;
+	if(type == GETYPE_NODE) {
+		m = Graph_GetNodeAttributeMatrix(g, attr_id);
+		row = col = ENTITY_GET_ID(e);
+	} else {
+		m = Graph_GetEdgeAttributeMatrix(g, attr_id);
+		row = Graph_GetEdgeSrc(g, ENTITY_GET_ID(e));
+		col = Graph_GetEdgeDest(g, ENTITY_GET_ID(e));
+	}
 	assert(m);
+	assert(row != INVALID_ENTITY_ID && col != INVALID_ENTITY_ID);
 
-	GrB_Info info = GrB_Matrix_extractElement_UDT(v, m, ENTITY_GET_ID(e), ENTITY_GET_ID(e));
+	GrB_Info info = GrB_Matrix_extractElement_UDT(v, m, row, col);
 	if(info != GrB_SUCCESS) {
 		*v = SI_NullVal();
 		return;
@@ -95,14 +124,24 @@ void GraphEntity_GetProperties(
 	int attr_count = ENTITY_PROP_COUNT(e);
 	GraphContext *gc = QueryCtx_GetGraphCtx();
 
+	GraphEntityType type = ENTITY_TYPE(e);
 	// As long as there are attributes to be retrieved.
 	while(attr_count) {
-		if(ENTITY_TYPE(e) == GETYPE_NODE) m = Graph_GetNodeAttributeMatrix(g, attr_id);
-		else m = Graph_GetEdgeAttributeMatrix(g, attr_id);
+		GrB_Index row = INVALID_ENTITY_ID;
+		GrB_Index col = INVALID_ENTITY_ID;
+		if(type == GETYPE_NODE) {
+			m = Graph_GetNodeAttributeMatrix(g, attr_id);
+			row = col = ENTITY_GET_ID(e);
+		} else {
+			m = Graph_GetEdgeAttributeMatrix(g, attr_id);
+			row = Graph_GetEdgeSrc(g, ENTITY_GET_ID(e));
+			col = Graph_GetEdgeDest(g, ENTITY_GET_ID(e));
+		}
 		assert(m);
+		assert(row != INVALID_ENTITY_ID && col != INVALID_ENTITY_ID);
 
 		// See if entity contains attribute `attr_id`.
-		info = GrB_Matrix_extractElement_UDT(&v, m, ENTITY_GET_ID(e), ENTITY_GET_ID(e));
+		info = GrB_Matrix_extractElement_UDT(&v, m, row, col);
 		if(info == GrB_SUCCESS) {
 			if(attr_ids) attr_ids[attr_count - 1] = attr_id;
 			if(attr_names) attr_names[attr_count - 1] = GraphContext_GetAttributeString(gc, attr_id);
@@ -261,3 +300,4 @@ void FreeEntity(Entity *e) {
 	Attribute_ID attr_id = 0;
 	while(e->prop_count) _GraphEntity_RemoveProperty(e, attr_id++);
 }
+

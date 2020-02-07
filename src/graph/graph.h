@@ -57,17 +57,23 @@ typedef struct Graph Graph;
 // typedef for synchronization function pointer
 typedef void (*SyncMatrixFunc)(const Graph *, GrB_Matrix);
 
+typedef struct {
+	GrB_Index src;
+	GrB_Index dest;
+} EdgeEndpoints;
+
 struct Graph {
 	DataBlock *nodes;                   // Graph nodes stored in blocks.
 	DataBlock *edges;                   // Graph edges stored in blocks.
+	DataBlock *edge_endpoints;          // Resolve edge IDs to source and destination IDs.
 	GrB_Matrix adjacency_matrix;        // Adjacency matrix, holds all graph connections.
 	GrB_Matrix _t_adjacency_matrix;     // Transposed Adjacency matrix.
 	GrB_Matrix *labels;                 // Label matrices.
 	GrB_Matrix *relations;              // Relation matrices.
 	GrB_Matrix *_relations_map;         // Maps from (relation, row, col) to edge id.
 	GrB_Matrix _zero_matrix;            // Zero matrix.
-    GrB_Matrix *node_attributes;        // Node attribute matrices.
-    GrB_Matrix *edge_attributes;        // Edge attribute matrices.
+	GrB_Matrix *node_attributes;        // Node attribute matrices.
+	GrB_Matrix *edge_attributes;        // Edge attribute matrices.
 	pthread_mutex_t _writers_mutex;     // Mutex restrict single writer.
 	pthread_mutex_t _mutex;             // Mutex for accessing critical sections.
 	pthread_rwlock_t _rwlock;           // Read-write lock scoped to this specific graph
@@ -117,7 +123,7 @@ int Graph_AddRelationType(
 
 // Creates a new attribute matrices (node/edge).
 void Graph_AddAttribute(
-    Graph *g
+	Graph *g
 );
 
 // Make sure graph can hold an additional N nodes.
@@ -240,6 +246,20 @@ int Graph_GetEdge(
 	Edge *e
 );
 
+// Retrieves the source node ID of the edge
+// with the given ID from the graph.
+GrB_Index Graph_GetEdgeSrc(
+	const Graph *g,
+	EdgeID id
+);
+
+// Retrieves the destination node ID of the edge
+// with the given ID from the graph.
+GrB_Index Graph_GetEdgeDest(
+	const Graph *g,
+	EdgeID id
+);
+
 // Retrieves edge relation type
 // Returns GRAPH_NO_RELATION if edge has no relation type.
 int Graph_GetEdgeRelation(
@@ -298,13 +318,13 @@ GrB_Matrix Graph_GetRelationMatrix(
 );
 
 GrB_Matrix Graph_GetNodeAttributeMatrix(
-    const Graph *g,
-    int attribute_id
+	const Graph *g,
+	int attribute_id
 );
 
 GrB_Matrix Graph_GetEdgeAttributeMatrix(
-    const Graph *g,
-    int attribute_id
+	const Graph *g,
+	int attribute_id
 );
 
 // Retrieve a relation mapping matrix coresponding to relation_idx
@@ -324,3 +344,4 @@ void Graph_Free(
 );
 
 #endif
+
