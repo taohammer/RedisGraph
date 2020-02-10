@@ -1096,7 +1096,7 @@ int Graph_AddRelationType(Graph *g) {
 	g->relations = array_append(g->relations, m);
 
 	m = RG_Matrix_New(GrB_BOOL, Graph_RequiredMatrixDim(g), Graph_RequiredMatrixDim(g));
-	g->t_relations = array_append(g->relations, m);
+	g->t_relations = array_append(g->t_relations, m);
 	_Graph_AddRelationMap(g);
 
 	// Edge mapping for relation K is at _relations_map[K].
@@ -1115,9 +1115,9 @@ GrB_Matrix Graph_GetAdjacencyMatrix(const Graph *g) {
 // Get the transposed adjacency matrix.
 GrB_Matrix Graph_GetTransposedAdjacencyMatrix(const Graph *g) {
 	assert(g);
-	GrB_Matrix m = g->_t_adjacency_matrix;
+	RG_Matrix m = g->_t_adjacency_matrix;
 	g->SynchronizeMatrix(g, m);
-	return m;
+	return RG_Matrix_Get_GrB_Matrix(m);
 }
 
 GrB_Matrix Graph_GetLabelMatrix(const Graph *g, int label_idx) {
@@ -1141,15 +1141,14 @@ GrB_Matrix Graph_GetRelationMatrix(const Graph *g, int relation_idx) {
 
 GrB_Matrix Graph_GetTransposedRelationMatrix(const Graph *g, int relation_idx) {
 	assert(g && (relation_idx == GRAPH_NO_RELATION || relation_idx < Graph_RelationTypeCount(g)));
-	GrB_Matrix m;
 
 	if(relation_idx == GRAPH_NO_RELATION) {
-		m = Graph_GetTransposedAdjacencyMatrix(g);
+		return Graph_GetTransposedAdjacencyMatrix(g);
 	} else {
-		m = g->t_relations[relation_idx];
+		RG_Matrix m = g->t_relations[relation_idx];
 		g->SynchronizeMatrix(g, m);
+		return RG_Matrix_Get_GrB_Matrix(m);
 	}
-	return m;
 }
 
 GrB_Matrix Graph_GetZeroMatrix(const Graph *g) {
